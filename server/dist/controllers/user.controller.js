@@ -1,6 +1,7 @@
 import expressAsyncHandler from "express-async-handler";
 import { User } from "../models/User.js";
 import { generateToken } from "../utils/generateToken.js";
+import bcrypt from "bcryptjs";
 export const signup = expressAsyncHandler(async (req, res) => {
     const { email, password, fullName } = req.body;
     const userExists = await User.findOne({ email });
@@ -9,10 +10,12 @@ export const signup = expressAsyncHandler(async (req, res) => {
         return;
     }
     ;
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
     const user = await User.create({
         email,
         fullName,
-        password,
+        password: hashedPassword,
     });
     if (user) {
         generateToken(user.id, res);
@@ -24,6 +27,14 @@ export const signup = expressAsyncHandler(async (req, res) => {
     ;
 });
 export const login = expressAsyncHandler(async (req, res) => {
+    const { email, password } = req.body;
+    const user = await User.findOne({ email });
+    if (!user || !(await bcrypt.compare(password, user.password))) {
+        res.status(401).json({ message: "Invalid credentials" });
+        return;
+    }
+    generateToken(user.id, res);
+    res.status(200).json({ message: "Successfully logged in" });
 });
 export const logout = expressAsyncHandler(async (req, res) => {
     res.clearCookie("jwt");
